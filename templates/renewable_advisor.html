@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Renewable Switch Advisor</h1>
+<p class="hero-subtitle">Based on predicted demand vs solar availability, here's your optimal switch schedule.</p>
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, msg in messages %}
+      <div class="flash-message flash-{{ category }}">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+<div class="card advisor-summary">
+    <div class="result-stat">
+        <span class="stat-label">Best Solar Window</span>
+        <span class="stat-value stat-highlight">{{ advice.best_window }}</span>
+    </div>
+    <div class="result-stat">
+        <span class="stat-label">Solar-Optimal Hours Today</span>
+        <span class="stat-value">{{ advice.solar_hour_count }} / 24</span>
+    </div>
+</div>
+
+<div class="card advisor-table-card">
+    <h3 class="forecast-title">Hourly Breakdown</h3>
+    <div class="advisor-table">
+        {% for h in advice.hours %}
+        <div class="advisor-row {{ 'row-solar' if h.recommendation == 'Solar' else 'row-grid' }}">
+            <span class="advisor-hour">{{ h.hour }}</span>
+            <span class="advisor-bar-label">Solar: {{ h.solar_available }}%</span>
+            <span class="advisor-bar-label">Demand: {{ h.demand }}%</span>
+            <span class="advisor-tag">{{ h.recommendation }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Energy Predictions</h1>
+<p class="hero-subtitle">Enter your building details to estimate energy usage and cost.</p>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, msg in messages %}
+      <div class="flash-message flash-{{ category }}">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="predictions-layout">
+    <form method="POST" class="card predict-form">
+        <label for="building_type">Building type</label>
+        <select id="building_type" name="building_type" required>
+            {% for bt in building_types %}
+            <option value="{{ bt }}">{{ bt }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="sqft">Square footage</label>
+        <input type="number" id="sqft" name="sqft" min="1" required>
+
+        <label for="zip_code">Zip code</label>
+        <input type="text" id="zip_code" name="zip_code" required>
+
+        <label for="country">Country</label>
+        <input type="text" id="country" name="country" required>
+
+        <button type="submit" class="btn-primary">Predict</button>
+    </form>
+
+    {% if result %}
+    <div class="card result-card">
+        <h2>Your Estimate</h2>
+        <div class="result-stats">
+            <div class="result-stat">
+                <span class="stat-label">Estimated Usage</span>
+                <span class="stat-value">{{ result.predicted_usage_kwh }} kWh</span>
+            </div>
+            <div class="result-stat">
+                <span class="stat-label">Estimated Cost</span>
+                <span class="stat-value">${{ result.estimated_cost }}</span>
+            </div>
+            <div class="result-stat">
+                <span class="stat-label">Potential Savings (est.)</span>
+                <span class="stat-value stat-highlight">${{ result.estimated_savings }}</span>
+            </div>
+        </div>
+
+        {% if weather %}
+        <h3 class="forecast-title">5-Day Forecast</h3>
+        <div class="forecast-row">
+            {% for day in weather %}
+            <div class="forecast-day">
+                <span class="forecast-date">{{ day.date }}</span>
+                <span class="forecast-temp">{{ day.day_temp }}° / {{ day.night_temp }}°</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('send_tip_sms') }}" class="sms-form">
+            <label for="phone_number">Text me this estimate</label>
+            <div class="sms-form-row">
+                <input type="tel" id="phone_number" name="phone_number"
+                       placeholder="+919257136015" required>
+                <button type="submit" class="btn-secondary">Send SMS</button>
+            </div>
+            <p class="sms-note">
+                Note: on our current Twilio trial plan, you'll receive a
+                generic account-alert text rather than these exact numbers.
+                The destination number must also be one you've verified in
+                the Twilio console.
+            </p>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

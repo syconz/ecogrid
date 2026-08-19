@@ -1,0 +1,8 @@
+Flask==3.0.3
+requests==2.32.3
+python-dotenv==1.0.1
+scikit-learn>=1.6
+pandas>=2.2.3
+numpy>=2.0
+twilio==9.2.3
+kaggle>=2.2.4

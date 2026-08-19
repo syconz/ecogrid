@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}EcoGrid{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('home') }}" class="nav-logo">
+                <span class="logo-icon">⚡</span> EcoGrid
+            </a>
+            <div class="nav-links">
+                {% if session.get('user') %}
+                    <a href="{{ url_for('predictions') }}" class="nav-link">Predictions</a>
+                    <a href="{{ url_for('renewable_advisor') }}" class="nav-link">Renewable Advisor</a>
+                    <a href="{{ url_for('analytics') }}" class="nav-link">Analytics</a>
+                    <a href="{{ url_for('resources') }}" class="nav-link">Resources</a>
+                    <a href="{{ url_for('logout') }}" class="nav-link nav-cta">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('resources') }}" class="nav-link">Resources</a>
+                    <a href="{{ url_for('signup') }}" class="nav-link">Sign Up</a>
+                    <a href="{{ url_for('home') }}" class="nav-link nav-cta">Login</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>&copy; 2026 EcoGrid — Smarter energy, greener future.</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

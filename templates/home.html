@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="home-hero">
+    <div class="hero-text">
+        <h1>Smarter energy starts here.</h1>
+        <p class="hero-subtitle">
+            EcoGrid predicts your energy usage, tells you when to switch to renewables,
+            and helps you cut costs — powered by your own consumption data.
+        </p>
+    </div>
+
+    <div class="login-card card">
+        <h2>Login</h2>
+        {% if error %}
+        <p class="form-error">{{ error }}</p>
+        {% endif %}
+        <form method="POST" action="{{ url_for('login') }}" class="login-form">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" placeholder="Enter username" required>
+
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="Enter password" required>
+
+            <button type="submit" class="btn-primary">Log In</button>
+        </form>
+        <p class="login-hint">New here? <a href="{{ url_for('signup') }}">Create an account</a></p>
+    </div>
+</div>
+{% endblock %}
