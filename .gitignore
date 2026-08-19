@@ -1,0 +1,21 @@
+# Environment / secrets
+.env
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# SQLite database (contains real user data — don't commit)
+ecogrid.db
+
+# Raw Kaggle download (huge, keep local only — clean_training_data.csv/training_ready.csv ARE tracked via LFS below)
+data/raw/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
