@@ -3,8 +3,13 @@ utils/ml_model.py
 Loads the trained RandomForest model (models/energy_model.pkl) and exposes
 predict_energy_cost() for the Flask app to call.
 
-get_renewable_advice() and get_historical_usage() are UNCHANGED from before —
-still mock/random data, to be replaced in later steps.
+get_historical_usage() is UNCHANGED from before — still mock/random data,
+to be replaced in later steps.
+
+MEMORY FIX: get_renewable_advice() used to load and permanently cache all
+13 Prophet models at once, which was pushing memory usage past Render's
+512MB free-tier limit and crashing the service. It now keeps at most ONE
+Prophet model in memory at a time (see _load_renewable_model_for below).
 """
 
 import os
@@ -18,21 +23,6 @@ from utils.weather_api import get_solar_irradiance_forecast
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "energy_model.pkl")
 
 RENEWABLE_MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "renewable_prophet_models.pkl")
-
-_renewable_artifact = None  # loaded once, cached at module level
-
-
-def _load_renewable_models():
-    global _renewable_artifact
-    if _renewable_artifact is None:
-        if not os.path.exists(RENEWABLE_MODEL_PATH):
-            raise FileNotFoundError(
-                f"Renewable forecasting models not found at {RENEWABLE_MODEL_PATH}. "
-                "Run train_renewable_model.py first to generate them."
-            )
-        with open(RENEWABLE_MODEL_PATH, "rb") as f:
-            _renewable_artifact = pickle.load(f)
-    return _renewable_artifact
 
 
 def _solar_availability_curve():
@@ -56,11 +46,11 @@ def _solar_availability_curve():
 # This is a placeholder; a real app might make this configurable per region.
 COST_PER_KWH = 8.5  # e.g. INR per kWh — change as needed
 
-_model_artifact = None  # loaded once, cached at module level
+_model_artifact = None  # loaded once, cached at module level (RandomForest — small, fine to keep)
 
 
 def _load_model():
-    """Loads the pickled model artifact once and caches it in memory."""
+    """Loads the pickled RandomForest model artifact once and caches it in memory."""
     global _model_artifact
     if _model_artifact is None:
         if not os.path.exists(MODEL_PATH):
@@ -115,8 +105,6 @@ def predict_energy_cost(
             estimated_cost (float)
             building_type_used (str) — what was actually matched/used
     """
-    import datetime
-
     artifact = _load_model()
     model = artifact["model"]
     feature_cols = artifact["feature_cols"]
@@ -182,11 +170,74 @@ def predict_energy_cost(
 
 
 # ---------------------------------------------------------------------------
-# UNCHANGED BELOW — still mock/random data, not part of this step.
-# get_renewable_advice() and get_historical_usage() will be addressed later
-# (renewable advisor real logic is item 5, analytics/history depends on the
-# database work in item 4).
+# Renewable Switch Advisor — Prophet models
+#
+# MEMORY FIX: the pickle at RENEWABLE_MODEL_PATH bundles all 13 per-building
+# -type Prophet models into one file. The old code unpickled it once and
+# cached the whole dict of 13 models in memory forever — that's what was
+# pushing the app past Render's free-tier 512MB limit and crashing it.
+#
+# Now we cache at most ONE Prophet model at a time. Unpickling still briefly
+# loads all 13 into memory (that's unavoidable given how the file is
+# structured), but everything except the requested model is dropped right
+# after, so steady-state memory holds just 1 model instead of 13. Switching
+# building types re-reads the pickle — a small CPU cost — in exchange for a
+# much smaller long-term memory footprint.
 # ---------------------------------------------------------------------------
+
+_renewable_building_types = None  # list of known types, cached (cheap — just strings)
+_cached_model_type = None         # which single building type is currently cached
+_cached_model = None              # the one Prophet model currently held in memory
+
+
+def _get_renewable_building_types():
+    """
+    Returns the list of building types the renewable models were trained on,
+    without permanently caching the (heavy) Prophet models themselves.
+    """
+    global _renewable_building_types
+    if _renewable_building_types is None:
+        if not os.path.exists(RENEWABLE_MODEL_PATH):
+            raise FileNotFoundError(
+                f"Renewable forecasting models not found at {RENEWABLE_MODEL_PATH}. "
+                "Run train_renewable_model.py first to generate them."
+            )
+        with open(RENEWABLE_MODEL_PATH, "rb") as f:
+            artifact = pickle.load(f)
+        _renewable_building_types = artifact["building_types"]
+        del artifact  # only needed the type list; let the other models get GC'd
+    return _renewable_building_types
+
+
+def _load_renewable_model_for(building_type):
+    """Loads (and caches) only the Prophet model for the requested building_type."""
+    global _cached_model_type, _cached_model
+
+    if _cached_model_type == building_type and _cached_model is not None:
+        return _cached_model
+
+    if not os.path.exists(RENEWABLE_MODEL_PATH):
+        raise FileNotFoundError(
+            f"Renewable forecasting models not found at {RENEWABLE_MODEL_PATH}. "
+            "Run train_renewable_model.py first to generate them."
+        )
+
+    with open(RENEWABLE_MODEL_PATH, "rb") as f:
+        artifact = pickle.load(f)
+
+    models = artifact["models"]
+    if building_type not in models:
+        del models, artifact
+        raise KeyError(f"No renewable model for building_type '{building_type}'")
+
+    _cached_model = models[building_type]
+    _cached_model_type = building_type
+
+    del models
+    del artifact  # drop references to the other 12 models so GC can reclaim them
+
+    return _cached_model
+
 
 def get_renewable_advice(usage_kwh=450, building_type=None, zip_code=None, country=None):
     """
@@ -206,19 +257,17 @@ def get_renewable_advice(usage_kwh=450, building_type=None, zip_code=None, count
     Both curves are normalized to a 0-100 percent-of-peak scale so they're
     directly comparable hour-by-hour, matching what the template displays.
     """
-    artifact = _load_renewable_models()
-    models = artifact["models"]
-    available_types = artifact["building_types"]
+    available_types = _get_renewable_building_types()
 
-    if building_type not in models:
-        fallback = "Office" if "Office" in models else available_types[0]
+    if building_type not in available_types:
+        fallback = "Office" if "Office" in available_types else available_types[0]
         print(
             f"WARNING: No renewable model for building_type '{building_type}'. "
             f"Falling back to '{fallback}'. Available: {available_types}"
         )
         building_type = fallback
 
-    model = models[building_type]
+    model = _load_renewable_model_for(building_type)
 
     future = model.make_future_dataframe(periods=24, freq="h")
     forecast = model.predict(future)
@@ -279,8 +328,6 @@ def get_historical_usage(days=30):
     Still random data, but each entry now carries a real calendar date
     (most recent day last) so the Analytics chart can label its axis
     properly instead of showing generic day numbers."""
-    import datetime
-
     data = []
     today = datetime.date.today()
 
