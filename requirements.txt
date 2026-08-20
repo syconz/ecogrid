@@ -5,4 +5,5 @@ scikit-learn>=1.6
 pandas>=2.2.3
 numpy>=2.0
 twilio==9.2.3
-kaggle>=2.2.4gunicorn
+kaggle>=2.2.4
+gunicorn
