@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "packages": {
+    "git-lfs": "latest"
+  },
+  "steps": {
+    "install": {
+      "commands": [
+        "git lfs install",
+        "git lfs pull"
+      ]
+    }
+  }
+}
