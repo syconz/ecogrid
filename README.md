@@ -16,18 +16,23 @@ A rebuild of an earlier Streamlit prototype ("Savergy"), with ideas drawn from
   geocoded from a zip code + ISO country code.
 - **Renewable Switch Advisor** — 13 Prophet models (one per building type),
   trained on real historical hourly usage, forecast a 24-hour demand curve
-  tied to your actual prediction. Combined with a solar availability curve
-  to recommend Solar vs. Grid hour by hour.
+  tied to your actual prediction. Combined with real hourly solar
+  irradiance (Open-Meteo, geocoded from your zip/country) to recommend
+  Solar vs. Grid hour by hour — falls back to an approximated daylight
+  curve if location data isn't available.
 - **SMS notifications** — sends your prediction summary via Twilio.
 - **Accounts & history** — SQLite-backed signup/login (hashed passwords)
   with per-user prediction history driving the Analytics page.
 
 ## Honest caveats
 
-- **Solar availability is NOT real solar/irradiance data.** The training
-  dataset has none. It's a physically-motivated daylight bell curve
-  (peaking near solar noon), used only to compare against the real,
-  model-derived demand curve. Don't treat it as a real solar forecast.
+- **Solar availability uses real irradiance data when available.** Hourly
+  Global Horizontal Irradiance (GHI) is pulled live from the Open-Meteo
+  Solar Radiation API, geocoded from the zip/country on your most recent
+  prediction. If no location is on file, or the API call fails, it falls
+  back to a physically-motivated daylight bell curve (peaking near solar
+  noon) — the UI flags which one was used via the "Solar Data Source" badge
+  on the Renewable Advisor page.
 - **Twilio is on a trial account by default.** Trial accounts can only send
   one of Twilio's fixed template bodies (not custom text) and can only text
   numbers verified in the Twilio console. Upgrading the account removes both

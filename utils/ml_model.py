@@ -13,6 +13,7 @@ import random
 import pandas as pd
 import math
 import datetime
+from utils.weather_api import get_solar_irradiance_forecast
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "energy_model.pkl")
 
@@ -187,21 +188,20 @@ def predict_energy_cost(
 # database work in item 4).
 # ---------------------------------------------------------------------------
 
-def get_renewable_advice(usage_kwh=450, building_type=None):
+def get_renewable_advice(usage_kwh=450, building_type=None, zip_code=None, country=None):
     """
     Builds a 24-hour Solar-vs-Grid recommendation table.
 
-    Demand curve: comes from a REAL Prophet model trained on actual
-    historical hourly usage for the given building_type (see
-    train_renewable_model.py). Prophet forecasts the next 24 hours of
-    relative shape for that building type; we then scale that shape so it
-    sums to the user's actual predicted daily usage (usage_kwh) rather than
-    showing the raw historical average — this ties the advisor to the
-    user's real prediction, not a fixed placeholder.
+    Demand curve: from a REAL Prophet model trained on actual historical
+    hourly usage for the given building_type, scaled to the user's actual
+    predicted daily usage (see train_renewable_model.py).
 
-    Solar curve: NOT from real data (the dataset has no solar/irradiance
-    columns) — it's a physically-motivated daylight bell curve. Documented
-    here so it's never confused with a real solar forecast.
+    Solar curve: REAL hourly solar irradiance (GHI) via Open-Meteo, when a
+    zip_code + country are provided and the API call succeeds. Falls back
+    to a physically-motivated daylight bell curve (documented in
+    _solar_availability_curve()) if no location is given or the real fetch
+    fails — this fallback is flagged via the returned "solar_is_real" key
+    so the UI can be honest about which one was used.
 
     Both curves are normalized to a 0-100 percent-of-peak scale so they're
     directly comparable hour-by-hour, matching what the template displays.
@@ -220,30 +220,37 @@ def get_renewable_advice(usage_kwh=450, building_type=None):
 
     model = models[building_type]
 
-    # Forecast the next 24 hours from where this model's training data ends
     future = model.make_future_dataframe(periods=24, freq="h")
     forecast = model.predict(future)
     next_24 = forecast.tail(24)["yhat"].clip(lower=0).reset_index(drop=True)
 
-    # Normalize the forecasted shape to sum to 1, then scale to the user's
-    # actual predicted daily usage
     total_shape = next_24.sum()
     if total_shape <= 0:
-        # Degenerate case safeguard — fall back to a flat distribution
         hourly_kwh = [usage_kwh / 24] * 24
     else:
         hourly_kwh = [(v / total_shape) * usage_kwh for v in next_24]
 
-    # Convert demand to a 0-100 percent-of-peak scale for display/comparison
     peak_demand = max(hourly_kwh) if max(hourly_kwh) > 0 else 1
     demand_pct = [round(float(v / peak_demand) * 100, 1) for v in hourly_kwh]
-    solar_curve = _solar_availability_curve()
+
+    # Try real solar irradiance first; fall back to the approximated curve
+    solar_is_real = False
+    real_irradiance = None
+    if zip_code and country:
+        real_irradiance = get_solar_irradiance_forecast(zip_code, country)
+
+    if real_irradiance:
+        peak_irradiance = max(real_irradiance.values()) or 1
+        solar_curve = {h: round((v / peak_irradiance) * 100, 1) for h, v in real_irradiance.items()}
+        solar_is_real = True
+    else:
+        solar_curve = _solar_availability_curve()
 
     hours = []
     solar_hour_count = 0
 
     for h in range(24):
-        solar_pct = round(solar_curve[h], 1)
+        solar_pct = round(solar_curve.get(h, 0.0), 1)
         demand = demand_pct[h]
         recommendation = "Solar" if solar_pct >= demand else "Grid"
         if recommendation == "Solar":
@@ -263,7 +270,9 @@ def get_renewable_advice(usage_kwh=450, building_type=None):
         "best_window": f"{best_hour_num:02d}:00 - {(best_hour_num + 1) % 24:02d}:00",
         "solar_hour_count": solar_hour_count,
         "hours": hours,
+        "solar_is_real": solar_is_real,
     }
+
 
 def get_historical_usage(days=30):
     """MOCK — simulates the last `days` days of usage history for analytics.
