@@ -18,6 +18,14 @@
         <span class="stat-label">Solar-Optimal Hours Today</span>
         <span class="stat-value">{{ advice.solar_hour_count }} / 24</span>
     </div>
+    <div class="result-stat">
+        <span class="stat-label">Solar Data Source</span>
+        {% if advice.solar_is_real %}
+            <span class="stat-value badge-live">Live irradiance (Open-Meteo)</span>
+        {% else %}
+            <span class="stat-value badge-estimated">Estimated (no location on file)</span>
+        {% endif %}
+    </div>
 </div>
 
 <div class="card advisor-table-card">

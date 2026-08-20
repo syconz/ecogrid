@@ -132,3 +132,5 @@ ecogrid/
 
 - Hardware integration (ESP32 + ACS712 current sensor via MQTT/HTTP) for
   live sensor readings instead of predictions — planned but not started.
+
+gunicorn

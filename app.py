@@ -119,9 +119,12 @@ def predictions():
             estimated_savings=result["estimated_savings"],
         )
 
-        # Stash the latest result in session so the SMS route can reuse it
+        # Stash the latest result AND location in session so the SMS route
+        # and Renewable Advisor (real solar irradiance) can reuse them
         # without the user having to resubmit the form.
         session["last_result"] = result
+        session["last_zip_code"] = zip_code
+        session["last_country"] = country
 
     return render_template(
         "predictions.html",
@@ -172,6 +175,8 @@ def renewable_advisor():
         # scale to a full day's usage for the 24-hour demand curve.
         daily_usage_kwh = last_result["predicted_usage_kwh"] * 24
         building_type = last_result["building_type_used"]
+        zip_code = session.get("last_zip_code")
+        country = session.get("last_country")
     else:
         # No prediction yet this session — fall back to a reasonable
         # default rather than crashing, but flag it so it's not confused
@@ -183,8 +188,15 @@ def renewable_advisor():
         )
         daily_usage_kwh = 450
         building_type = "Office"
+        zip_code = None
+        country = None
 
-    advice = get_renewable_advice(usage_kwh=daily_usage_kwh, building_type=building_type)
+    advice = get_renewable_advice(
+        usage_kwh=daily_usage_kwh,
+        building_type=building_type,
+        zip_code=zip_code,
+        country=country,
+    )
     return render_template("renewable_advisor.html", advice=advice)
 
 

@@ -383,7 +383,14 @@ h1, h2, h3, .logo-icon, .nav-logo {
     background: rgba(148, 163, 184, 0.15);
     color: var(--text-secondary);
 }
-
+.badge-live {
+    color: var(--accent-green);
+    font-weight: 600;
+}
+.badge-estimated {
+    color: #fbbf24;
+    font-weight: 600;
+}
 @media (max-width: 700px) {
     .advisor-row {
         grid-template-columns: 60px 1fr 1fr 70px;
@@ -509,3 +516,4 @@ h1, h2, h3, .logo-icon, .nav-logo {
     font-size: 0.8rem;
     color: rgba(255, 255, 255, 0.4);
 }
+
